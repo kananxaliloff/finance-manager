@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/gin-contrib/cors"
 )
 
 func main() {
@@ -23,6 +24,15 @@ func main() {
 
 	// Initialize Gin router
 	r := gin.Default()
+
+	// Add CORS middleware
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
 	// Basic route
 	r.GET("/api/health", func(c *gin.Context) {
