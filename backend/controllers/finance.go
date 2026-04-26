@@ -1,0 +1,168 @@
+package controllers
+
+import (
+	"finance-manager-backend/database"
+	"finance-manager-backend/models"
+	"finance-manager-backend/utils"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+type CreateAccountInput struct {
+	Name     string  `json:"name" binding:"required"`
+	Balance  float64 `json:"balance" binding:"required"`
+	Currency string  `json:"currency" binding:"required"`
+}
+
+type CreateTargetInput struct {
+	Name           string  `json:"name" binding:"required"`
+	AssignedAmount float64 `json:"assignedAmount" binding:"required"`
+	Currency       string  `json:"currency" binding:"required"`
+}
+
+// CreateAccount adds a new bank or cash account
+func CreateAccount(c *gin.Context) {
+	// Extract userID from context (set by AuthMiddleware)
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var input CreateAccountInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Cast float64 userID to uint (jwt mapclaims parses numbers as float64)
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+
+	account := models.Account{
+		UserID:   uid,
+		Name:     input.Name,
+		Balance:  input.Balance,
+		Currency: input.Currency,
+	}
+
+	if err := database.DB.Create(&account).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Account created successfully", "account": account})
+}
+
+// CreateTarget adds a new savings target
+func CreateTarget(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var input CreateTargetInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	}
+
+	target := models.Target{
+		UserID:         uid,
+		Name:           input.Name,
+		AssignedAmount: input.AssignedAmount,
+		Currency:       input.Currency,
+	}
+
+	if err := database.DB.Create(&target).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create target"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Target created successfully", "target": target})
+}
+
+// GetDashboard returns the actual vs available money calculation in the requested base currency
+func GetDashboard(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	}
+
+	// Default base currency is AZN
+	baseCurrency := c.DefaultQuery("baseCurrency", "AZN")
+
+	var accounts []models.Account
+	if err := database.DB.Where("user_id = ?", uid).Find(&accounts).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch accounts"})
+		return
+	}
+
+	var targets []models.Target
+	if err := database.DB.Where("user_id = ?", uid).Find(&targets).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch targets"})
+		return
+	}
+
+	var totalActualMoney float64 = 0
+	var totalAssignedTargets float64 = 0
+
+	// Sum Accounts in Base Currency
+	for _, acc := range accounts {
+		converted, err := utils.ConvertCurrency(acc.Balance, acc.Currency, baseCurrency)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Currency conversion error: " + err.Error()})
+			return
+		}
+		totalActualMoney += converted
+	}
+
+	// Sum Targets in Base Currency
+	for _, trg := range targets {
+		converted, err := utils.ConvertCurrency(trg.AssignedAmount, trg.Currency, baseCurrency)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Currency conversion error: " + err.Error()})
+			return
+		}
+		totalAssignedTargets += converted
+	}
+
+	// The Core Formula!
+	availableMoney := totalActualMoney - totalAssignedTargets
+
+	c.JSON(http.StatusOK, gin.H{
+		"baseCurrency":         baseCurrency,
+		"totalActualMoney":     totalActualMoney,
+		"totalAssignedTargets": totalAssignedTargets,
+		"availableMoney":       availableMoney,
+		"accounts":             accounts,
+		"targets":              targets,
+	})
+}

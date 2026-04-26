@@ -6,6 +6,7 @@ import (
 
 	"finance-manager-backend/controllers"
 	"finance-manager-backend/database"
+	"finance-manager-backend/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -45,6 +46,13 @@ func main() {
 	auth := r.Group("/api/v1/auth")
 	auth.POST("/register", controllers.Register)
 	auth.POST("/login", controllers.Login)
+
+	// Protected Finance Routes
+	finance := r.Group("/api/v1/finance")
+	finance.Use(middleware.RequireAuth) // Apply the JWT middleware
+	finance.GET("/dashboard", controllers.GetDashboard)
+	finance.POST("/accounts", controllers.CreateAccount)
+	finance.POST("/targets", controllers.CreateTarget)
 
 	port := os.Getenv("PORT")
 	if port == "" {
