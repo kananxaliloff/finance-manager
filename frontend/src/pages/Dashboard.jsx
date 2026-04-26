@@ -90,91 +90,96 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', padding: '1rem 2rem', maxWidth: '1400px', margin: '0 auto', boxSizing: 'border-box' }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>Finance Overview</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>Finance Overview</h1>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <select 
             value={baseCurrency} 
             onChange={(e) => setBaseCurrency(e.target.value)}
             className="form-input"
-            style={{ width: '120px', padding: '0.5rem 1rem' }}
+            style={{ width: '100px', padding: '0.4rem 0.8rem', margin: 0 }}
           >
             <option value="AZN">AZN</option>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
           </select>
-          <button onClick={handleLogout} className="btn-primary" style={{ marginTop: 0, padding: '0.5rem 1rem', background: 'transparent', border: '1px solid var(--border)' }}>
-            <LogOut size={20} />
+          <button onClick={handleLogout} className="btn-primary" style={{ margin: 0, padding: '0.4rem 0.8rem', background: 'transparent', border: '1px solid var(--border)' }}>
+            <LogOut size={18} />
           </button>
         </div>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && <div className="error-message" style={{marginBottom: '1rem'}}>{error}</div>}
 
-      {/* Main Metrics Cards */}
+      {/* Main Metrics Area */}
       {dashboardData && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', flexShrink: 0 }}>
           
-          <div className="auth-card" style={{ padding: '2rem', margin: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', color: 'var(--text-muted)' }}>
-              <Wallet size={24} color="#3b82f6" /> <h3>Actual Money</h3>
+          {/* HERO: Available Money */}
+          <div className="auth-card" style={{ padding: '2rem', margin: 0, background: 'linear-gradient(145deg, rgba(16, 185, 129, 0.15), rgba(30, 41, 59, 0.8))', border: '2px solid #10b981', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#10b981' }}>
+              <TrendingUp size={28} /> <h3 style={{fontSize: '1.2rem', margin: 0}}>Available Money</h3>
             </div>
-            <h2 style={{ fontSize: '2.5rem', margin: 0 }}>{dashboardData.totalActualMoney.toFixed(2)} <span style={{fontSize:'1.2rem', color:'var(--text-muted)'}}>{baseCurrency}</span></h2>
-            <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Total balance across all accounts</p>
+            <h2 style={{ fontSize: '4rem', margin: 0, color: '#10b981', fontWeight: '800' }}>{dashboardData.availableMoney.toFixed(2)} <span style={{fontSize:'1.5rem', opacity: 0.8}}>{baseCurrency}</span></h2>
           </div>
 
-          <div className="auth-card" style={{ padding: '2rem', margin: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', color: 'var(--text-muted)' }}>
-              <Target size={24} color="#ef4444" /> <h3>Assigned Targets</h3>
+          {/* SECONDARY: Actual & Assigned side-by-side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="auth-card" style={{ padding: '1.5rem', margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
+                  <Wallet size={20} color="#3b82f6" /> <h3 style={{margin: 0, fontSize: '1rem'}}>Actual Money</h3>
+                </div>
+                <h2 style={{ fontSize: '2rem', margin: 0 }}>{dashboardData.totalActualMoney.toFixed(2)} <span style={{fontSize:'1rem', color:'var(--text-muted)'}}>{baseCurrency}</span></h2>
+              </div>
             </div>
-            <h2 style={{ fontSize: '2.5rem', margin: 0 }}>{dashboardData.totalAssignedTargets.toFixed(2)} <span style={{fontSize:'1.2rem', color:'var(--text-muted)'}}>{baseCurrency}</span></h2>
-            <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Money locked for savings/obligations</p>
-          </div>
 
-          <div className="auth-card" style={{ padding: '2rem', margin: 0, background: 'linear-gradient(145deg, rgba(59, 130, 246, 0.2), rgba(30, 41, 59, 0.7))', border: '1px solid var(--primary)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', color: 'var(--text-main)' }}>
-              <TrendingUp size={24} color="#10b981" /> <h3>Available Money</h3>
+            <div className="auth-card" style={{ padding: '1.5rem', margin: 0, border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', color: '#ef4444' }}>
+                  <Target size={20} color="#ef4444" /> <h3 style={{margin: 0, fontSize: '1rem'}}>Assigned Targets</h3>
+                </div>
+                <h2 style={{ fontSize: '2rem', margin: 0, color: '#ef4444' }}>{dashboardData.totalAssignedTargets.toFixed(2)} <span style={{fontSize:'1rem', opacity: 0.8}}>{baseCurrency}</span></h2>
+              </div>
             </div>
-            <h2 style={{ fontSize: '3rem', margin: 0, color: '#10b981' }}>{dashboardData.availableMoney.toFixed(2)} <span style={{fontSize:'1.2rem', color:'var(--text-muted)'}}>{baseCurrency}</span></h2>
-            <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>The formula: Actual - Assigned</p>
           </div>
           
         </div>
       )}
 
-      {/* Lists & Creation Forms */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+      {/* Lists & Creation Forms - Takes remaining height and scrolls */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flexGrow: 1, minHeight: 0 }}>
         
         {/* Accounts Section */}
-        <div className="auth-card" style={{ maxWidth: '100%', margin: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h2>Your Accounts</h2>
-            <button onClick={() => setShowAccountForm(!showAccountForm)} className="btn-primary" style={{ width: 'auto', margin: 0, padding: '0.5rem', borderRadius: '50%' }}>
-              <Plus size={20} />
+        <div className="auth-card" style={{ margin: 0, padding: '1.5rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexShrink: 0 }}>
+            <h2 style={{margin: 0, fontSize: '1.2rem'}}>Your Accounts</h2>
+            <button onClick={() => setShowAccountForm(!showAccountForm)} className="btn-primary" style={{ width: 'auto', margin: 0, padding: '0.4rem', borderRadius: '50%' }}>
+              <Plus size={18} />
             </button>
           </div>
           
           {showAccountForm && (
-            <form onSubmit={(e) => handleCreate(e, 'account')} style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <input type="text" className="form-input" placeholder="Account Name" value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-                <input type="number" step="0.01" className="form-input" placeholder="Balance" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ paddingLeft: '1rem', width: '100px' }}>
+            <form onSubmit={(e) => handleCreate(e, 'account')} style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input type="text" className="form-input" placeholder="Name" value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ padding: '0.5rem', margin: 0 }} />
+                <input type="number" step="0.01" className="form-input" placeholder="Balance" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ padding: '0.5rem', margin: 0, width: '100px' }} />
+                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ padding: '0.5rem', margin: 0, width: '80px' }}>
                   <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
                 </select>
               </div>
-              <button type="submit" className="btn-primary" style={{ margin: 0, padding: '0.5rem' }}>Add Account</button>
+              <button type="submit" className="btn-primary" style={{ margin: 0, padding: '0.5rem' }}>Add</button>
             </form>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.5rem' }}>
             {dashboardData?.accounts?.length === 0 && <p style={{color: 'var(--text-muted)'}}>No accounts added yet.</p>}
             {dashboardData?.accounts?.map(acc => (
-              <div key={acc.ID} style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+              <div key={acc.ID} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                 <div style={{ fontWeight: '500' }}>{acc.Name}</div>
                 <div style={{ color: 'var(--text-muted)' }}>{acc.Balance.toFixed(2)} {acc.Currency}</div>
               </div>
@@ -183,31 +188,31 @@ export default function Dashboard() {
         </div>
 
         {/* Targets Section */}
-        <div className="auth-card" style={{ maxWidth: '100%', margin: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h2>Savings Targets</h2>
-            <button onClick={() => setShowTargetForm(!showTargetForm)} className="btn-primary" style={{ width: 'auto', margin: 0, padding: '0.5rem', borderRadius: '50%', background: '#ef4444' }}>
-              <Plus size={20} />
+        <div className="auth-card" style={{ margin: 0, padding: '1.5rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexShrink: 0 }}>
+            <h2 style={{margin: 0, fontSize: '1.2rem'}}>Savings Targets</h2>
+            <button onClick={() => setShowTargetForm(!showTargetForm)} className="btn-primary" style={{ width: 'auto', margin: 0, padding: '0.4rem', borderRadius: '50%', background: '#ef4444' }}>
+              <Plus size={18} />
             </button>
           </div>
           
           {showTargetForm && (
-            <form onSubmit={(e) => handleCreate(e, 'target')} style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <input type="text" className="form-input" placeholder="Target Name" value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-                <input type="number" step="0.01" className="form-input" placeholder="Amount" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ paddingLeft: '1rem', width: '100px' }}>
+            <form onSubmit={(e) => handleCreate(e, 'target')} style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input type="text" className="form-input" placeholder="Name" value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ padding: '0.5rem', margin: 0 }} />
+                <input type="number" step="0.01" className="form-input" placeholder="Amount" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ padding: '0.5rem', margin: 0, width: '100px' }} />
+                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ padding: '0.5rem', margin: 0, width: '80px' }}>
                   <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
                 </select>
               </div>
-              <button type="submit" className="btn-primary" style={{ margin: 0, padding: '0.5rem', background: '#ef4444' }}>Add Target</button>
+              <button type="submit" className="btn-primary" style={{ margin: 0, padding: '0.5rem', background: '#ef4444' }}>Add</button>
             </form>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.5rem' }}>
             {dashboardData?.targets?.length === 0 && <p style={{color: 'var(--text-muted)'}}>No targets assigned yet.</p>}
             {dashboardData?.targets?.map(target => (
-              <div key={target.ID} style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+              <div key={target.ID} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                 <div style={{ fontWeight: '500' }}>{target.Name}</div>
                 <div style={{ color: 'var(--text-muted)' }}>{target.AssignedAmount.toFixed(2)} {target.Currency}</div>
               </div>
