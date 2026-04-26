@@ -1,6 +1,7 @@
 package database
 
 import (
+	"finance-manager-backend/models"
 	"fmt"
 	"log"
 	"os"
@@ -28,4 +29,7 @@ func ConnectDB() {
 	}
 
 	fmt.Println("Connected to Database")
+
+	DB.AutoMigrate(&models.User{})
+	fmt.Println("Database migrated")
 }
