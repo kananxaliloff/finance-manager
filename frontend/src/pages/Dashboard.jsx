@@ -151,6 +151,26 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Modal for Creating Accounts & Targets */}
+      {(showAccountForm || showTargetForm) && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="auth-card" style={{ width: '400px', maxWidth: '90%', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => {setShowAccountForm(false); setShowTargetForm(false)}} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>{showAccountForm ? 'Add New Account' : 'Add Savings Target'}</h2>
+            <form onSubmit={(e) => handleCreate(e, showAccountForm ? 'account' : 'target')} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input type="text" className="form-input" placeholder={showAccountForm ? "Account Name" : "Target Name"} value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ paddingLeft: '1rem' }} />
+              <input type="number" step="0.01" className="form-input" placeholder="Amount" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
+              <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ paddingLeft: '1rem' }}>
+                <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
+              </select>
+              <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem', background: showTargetForm ? '#ef4444' : 'var(--primary)' }}>
+                {showAccountForm ? 'Save Account' : 'Save Target'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Lists & Creation Forms - Takes remaining height and scrolls */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flexGrow: 1, minHeight: 0 }}>
         
@@ -163,25 +183,12 @@ export default function Dashboard() {
             </button>
           </div>
           
-          {showAccountForm && (
-            <form onSubmit={(e) => handleCreate(e, 'account')} style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input type="text" className="form-input" placeholder="Name" value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ padding: '0.5rem', margin: 0 }} />
-                <input type="number" step="0.01" className="form-input" placeholder="Balance" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ padding: '0.5rem', margin: 0, width: '100px' }} />
-                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ padding: '0.5rem', margin: 0, width: '80px' }}>
-                  <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
-                </select>
-              </div>
-              <button type="submit" className="btn-primary" style={{ margin: 0, padding: '0.5rem' }}>Add</button>
-            </form>
-          )}
-
           <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.5rem' }}>
             {dashboardData?.accounts?.length === 0 && <p style={{color: 'var(--text-muted)'}}>No accounts added yet.</p>}
             {dashboardData?.accounts?.map(acc => (
-              <div key={acc.ID} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                <div style={{ fontWeight: '500' }}>{acc.Name}</div>
-                <div style={{ color: 'var(--text-muted)' }}>{acc.Balance.toFixed(2)} {acc.Currency}</div>
+              <div key={acc.ID} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', gap: '1rem' }}>
+                <div style={{ fontWeight: '500', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={acc.Name}>{acc.Name}</div>
+                <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{acc.Balance.toFixed(2)} {acc.Currency}</div>
               </div>
             ))}
           </div>
@@ -196,25 +203,12 @@ export default function Dashboard() {
             </button>
           </div>
           
-          {showTargetForm && (
-            <form onSubmit={(e) => handleCreate(e, 'target')} style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input type="text" className="form-input" placeholder="Name" value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ padding: '0.5rem', margin: 0 }} />
-                <input type="number" step="0.01" className="form-input" placeholder="Amount" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ padding: '0.5rem', margin: 0, width: '100px' }} />
-                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ padding: '0.5rem', margin: 0, width: '80px' }}>
-                  <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
-                </select>
-              </div>
-              <button type="submit" className="btn-primary" style={{ margin: 0, padding: '0.5rem', background: '#ef4444' }}>Add</button>
-            </form>
-          )}
-
           <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.5rem' }}>
             {dashboardData?.targets?.length === 0 && <p style={{color: 'var(--text-muted)'}}>No targets assigned yet.</p>}
             {dashboardData?.targets?.map(target => (
-              <div key={target.ID} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                <div style={{ fontWeight: '500' }}>{target.Name}</div>
-                <div style={{ color: 'var(--text-muted)' }}>{target.AssignedAmount.toFixed(2)} {target.Currency}</div>
+              <div key={target.ID} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', gap: '1rem' }}>
+                <div style={{ fontWeight: '500', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={target.Name}>{target.Name}</div>
+                <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{target.AssignedAmount.toFixed(2)} {target.Currency}</div>
               </div>
             ))}
           </div>
