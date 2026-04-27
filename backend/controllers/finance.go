@@ -10,15 +10,19 @@ import (
 )
 
 type CreateAccountInput struct {
-	Name     string  `json:"name" binding:"required"`
-	Balance  float64 `json:"balance" binding:"required"`
-	Currency string  `json:"currency" binding:"required"`
+	Name       string             `json:"name" binding:"required"`
+	Balance    float64            `json:"balance" binding:"required"`
+	Currency   string             `json:"currency" binding:"required"`
+	Type       models.AccountType `json:"type" binding:"required"`
+	CardNumber *string            `json:"cardNumber" binding:"omitempty"`
 }
 
 type CreateTargetInput struct {
-	Name           string  `json:"name" binding:"required"`
-	AssignedAmount float64 `json:"assignedAmount" binding:"required"`
-	Currency       string  `json:"currency" binding:"required"`
+	Name           string            `json:"name" binding:"required"`
+	AssignedAmount float64           `json:"assignedAmount" binding:"required"`
+	Currency       string            `json:"currency" binding:"required"`
+	Type           models.TargetType `json:"type" binding:"required"`
+	Note           *string           `json:"note" binding:"omitempty"`
 }
 
 // CreateAccount adds a new bank or cash account
@@ -49,10 +53,12 @@ func CreateAccount(c *gin.Context) {
 	}
 
 	account := models.Account{
-		UserID:   uid,
-		Name:     input.Name,
-		Balance:  input.Balance,
-		Currency: input.Currency,
+		UserID:     uid,
+		Name:       input.Name,
+		Balance:    input.Balance,
+		Currency:   input.Currency,
+		Type:       input.Type,
+		CardNumber: input.CardNumber,
 	}
 
 	if err := database.DB.Create(&account).Error; err != nil {
@@ -60,7 +66,7 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Account created successfully", "account": account})
+	c.JSON(http.StatusCreated, gin.H{"accountId": account.ID})
 }
 
 // CreateTarget adds a new savings target
@@ -90,6 +96,8 @@ func CreateTarget(c *gin.Context) {
 		Name:           input.Name,
 		AssignedAmount: input.AssignedAmount,
 		Currency:       input.Currency,
+		Type:           input.Type,
+		Note:           input.Note,
 	}
 
 	if err := database.DB.Create(&target).Error; err != nil {
@@ -97,7 +105,7 @@ func CreateTarget(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Target created successfully", "target": target})
+	c.JSON(http.StatusCreated, gin.H{"targetId": target.ID})
 }
 
 // GetDashboard returns the actual vs available money calculation in the requested base currency
