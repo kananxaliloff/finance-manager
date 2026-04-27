@@ -12,8 +12,9 @@ export default function Dashboard() {
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [showTargetForm, setShowTargetForm] = useState(false);
   const [formName, setFormName] = useState('');
-  const [formAmount, setFormAmount] = useState('');
-  const [formCurrency, setFormCurrency] = useState('AZN');
+  const [formType, setFormType] = useState('CASH'); // CASH or CARD for accounts, SAVING or PURCHASE for targets
+  const [formCardNumber, setFormCardNumber] = useState('');
+  const [formNote, setFormNote] = useState('');
 
   const navigate = useNavigate();
 
@@ -59,8 +60,20 @@ export default function Dashboard() {
       const token = localStorage.getItem('authToken');
       const endpoint = type === 'account' ? '/api/v1/finance/accounts' : '/api/v1/finance/targets';
       const bodyPayload = type === 'account' 
-        ? { name: formName, balance: parseFloat(formAmount), currency: formCurrency }
-        : { name: formName, assignedAmount: parseFloat(formAmount), currency: formCurrency };
+        ? { 
+            name: formName, 
+            balance: parseFloat(formAmount), 
+            currency: formCurrency,
+            type: formType,
+            cardNumber: formType === 'CARD' ? formCardNumber : null
+          }
+        : { 
+            name: formName, 
+            assignedAmount: parseFloat(formAmount), 
+            currency: formCurrency,
+            type: formType,
+            note: formNote || null
+          };
 
       const res = await fetch(`http://localhost:8080${endpoint}`, {
         method: 'POST',
@@ -77,6 +90,9 @@ export default function Dashboard() {
       // Reset forms and refresh data
       setFormName('');
       setFormAmount('');
+      setFormType('CASH');
+      setFormCardNumber('');
+      setFormNote('');
       setShowAccountForm(false);
       setShowTargetForm(false);
       fetchDashboard();
@@ -158,11 +174,31 @@ export default function Dashboard() {
             <button onClick={() => {setShowAccountForm(false); setShowTargetForm(false)}} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
             <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>{showAccountForm ? 'Add New Account' : 'Add Savings Target'}</h2>
             <form onSubmit={(e) => handleCreate(e, showAccountForm ? 'account' : 'target')} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="text" className="form-input" placeholder={showAccountForm ? "Account Name" : "Target Name"} value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-              <input type="number" step="0.01" className="form-input" placeholder="Amount" value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-              <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ paddingLeft: '1rem' }}>
-                <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
-              </select>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <select className="form-input" value={formType} onChange={(e)=>setFormType(e.target.value)} style={{ paddingLeft: '1rem', flexShrink: 0 }}>
+                  {showAccountForm ? (
+                    <><option value="CASH">Cash</option><option value="CARD">Card</option></>
+                  ) : (
+                    <><option value="SAVING">Savings</option><option value="PURCHASE">Purchase</option></>
+                  )}
+                </select>
+                <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ paddingLeft: '1rem', width: '90px', flexShrink: 0 }}>
+                  <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
+                </select>
+              </div>
+
+              <input type="text" className="form-input" placeholder={showAccountForm ? "Name (e.g. Wallet, Kapital Bank)" : "Name (e.g. Emergency, Laptop)"} value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ paddingLeft: '1rem' }} />
+              <input type="number" step="0.01" className="form-input" placeholder={showAccountForm ? "Starting Balance" : "Current Amount"} value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
+              
+              {showAccountForm && formType === 'CARD' && (
+                <input type="text" className="form-input" placeholder="16-Digit Card Number" value={formCardNumber} onChange={(e)=>setFormCardNumber(e.target.value)} maxLength="16" pattern="\d{16}" required style={{ paddingLeft: '1rem' }} />
+              )}
+
+              {showTargetForm && (
+                <input type="text" className="form-input" placeholder="Optional Note / Wishlist Detail" value={formNote} onChange={(e)=>setFormNote(e.target.value)} style={{ paddingLeft: '1rem' }} />
+              )}
+
               <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem', background: showTargetForm ? '#ef4444' : 'var(--primary)' }}>
                 {showAccountForm ? 'Save Account' : 'Save Target'}
               </button>
@@ -185,12 +221,20 @@ export default function Dashboard() {
           
           <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.5rem' }}>
             {dashboardData?.accounts?.length === 0 && <p style={{color: 'var(--text-muted)'}}>No accounts added yet.</p>}
-            {dashboardData?.accounts?.map(acc => (
-              <div key={acc.ID} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', gap: '1rem' }}>
-                <div style={{ fontWeight: '500', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={acc.Name}>{acc.Name}</div>
-                <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{acc.Balance.toFixed(2)} {acc.Currency}</div>
-              </div>
-            ))}
+            {dashboardData?.accounts?.map(acc => {
+              const isCard = acc.Type === 'CARD' && acc.CardNumber && acc.CardNumber.length === 16;
+              const maskedCard = isCard ? `${acc.CardNumber.slice(0,4)} **** **** ${acc.CardNumber.slice(12,16)}` : '';
+              return (
+                <div key={acc.ID} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', gap: '1rem' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={acc.Name}>{acc.Name}</div>
+                    {isCard && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'monospace' }}>{maskedCard}</div>}
+                    {!isCard && acc.Type === 'CASH' && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>Cash Wallet</div>}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{acc.Balance.toFixed(2)} {acc.Currency}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -207,7 +251,13 @@ export default function Dashboard() {
             {dashboardData?.targets?.length === 0 && <p style={{color: 'var(--text-muted)'}}>No targets assigned yet.</p>}
             {dashboardData?.targets?.map(target => (
               <div key={target.ID} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', gap: '1rem' }}>
-                <div style={{ fontWeight: '500', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={target.Name}>{target.Name}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={target.Name}>{target.Name}</div>
+                    {target.Type === 'PURCHASE' && <span style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', borderRadius: '4px' }}>WISH</span>}
+                  </div>
+                  {target.Note && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{target.Note}</div>}
+                </div>
                 <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{target.AssignedAmount.toFixed(2)} {target.Currency}</div>
               </div>
             ))}
