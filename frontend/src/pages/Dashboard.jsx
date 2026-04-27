@@ -12,6 +12,8 @@ export default function Dashboard() {
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [showTargetForm, setShowTargetForm] = useState(false);
   const [formName, setFormName] = useState('');
+  const [formAmount, setFormAmount] = useState('');
+  const [formCurrency, setFormCurrency] = useState('AZN');
   const [formType, setFormType] = useState('CASH'); // CASH or CARD for accounts, SAVING or PURCHASE for targets
   const [formCardNumber, setFormCardNumber] = useState('');
   const [formNote, setFormNote] = useState('');
@@ -177,11 +179,10 @@ export default function Dashboard() {
               
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <select className="form-input" value={formType} onChange={(e)=>setFormType(e.target.value)} style={{ paddingLeft: '1rem', flexShrink: 0 }}>
-                  {showAccountForm ? (
-                    <><option value="CASH">Cash</option><option value="CARD">Card</option></>
-                  ) : (
-                    <><option value="SAVING">Savings</option><option value="PURCHASE">Purchase</option></>
-                  )}
+                  {showAccountForm && <option value="CASH">Cash</option>}
+                  {showAccountForm && <option value="CARD">Card</option>}
+                  {!showAccountForm && <option value="SAVING">Savings</option>}
+                  {!showAccountForm && <option value="PURCHASE">Purchase</option>}
                 </select>
                 <select className="form-input" value={formCurrency} onChange={(e)=>setFormCurrency(e.target.value)} style={{ paddingLeft: '1rem', width: '90px', flexShrink: 0 }}>
                   <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
