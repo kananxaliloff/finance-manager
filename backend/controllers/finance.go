@@ -25,6 +25,20 @@ type CreateTargetInput struct {
 	Note           *string           `json:"note" binding:"omitempty"`
 }
 
+type UpdateAccountInput struct {
+	Name       *string             `json:"name"`
+	Currency   *string             `json:"currency"`
+	Type       *models.AccountType `json:"type"`
+	CardNumber *string             `json:"cardNumber"`
+}
+
+type UpdateTargetInput struct {
+	Name     *string            `json:"name"`
+	Currency *string            `json:"currency"`
+	Type     *models.TargetType `json:"type"`
+	Note     *string            `json:"note"`
+}
+
 type CreateTransactionInput struct {
 	Amount               float64                `json:"amount" binding:"required"`
 	Currency             string                 `json:"currency" binding:"required"`
@@ -156,6 +170,116 @@ func CreateTarget(c *gin.Context) {
 
 	tx.Commit()
 	c.JSON(http.StatusCreated, gin.H{"targetId": target.ID})
+}
+
+// UpdateAccount modifies an existing account
+func UpdateAccount(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	}
+
+	id := c.Param("id")
+	var account models.Account
+	if err := database.DB.Where("id = ? AND user_id = ?", id, uid).First(&account).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Account not found"})
+		return
+	}
+
+	var input UpdateAccountInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if input.Name != nil {
+		updates["name"] = *input.Name
+	}
+	if input.Currency != nil {
+		updates["currency"] = *input.Currency
+		// If user changes currency, we should also update the currency of the initial balance transaction if it exists
+		database.DB.Model(&models.Transaction{}).
+			Where("user_id = ? AND source_account_id = ? AND description = ?", uid, account.ID, "Initial Balance").
+			Update("currency", *input.Currency)
+	}
+	if input.Type != nil {
+		updates["type"] = *input.Type
+	}
+	if input.CardNumber != nil {
+		updates["card_number"] = *input.CardNumber
+	}
+
+	if err := database.DB.Model(&account).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, account)
+}
+
+// UpdateTarget modifies an existing target
+func UpdateTarget(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	}
+
+	id := c.Param("id")
+	var target models.Target
+	if err := database.DB.Where("id = ? AND user_id = ?", id, uid).First(&target).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Target not found"})
+		return
+	}
+
+	var input UpdateTargetInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if input.Name != nil {
+		updates["name"] = *input.Name
+	}
+	if input.Currency != nil {
+		updates["currency"] = *input.Currency
+		// Update currency of initial allocation transaction
+		database.DB.Model(&models.Transaction{}).
+			Where("user_id = ? AND target_id = ? AND description = ?", uid, target.ID, "Initial Allocation").
+			Update("currency", *input.Currency)
+	}
+	if input.Type != nil {
+		updates["type"] = *input.Type
+	}
+	if input.Note != nil {
+		updates["note"] = *input.Note
+	}
+
+	if err := database.DB.Model(&target).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target"})
+		return
+	}
+
+	c.JSON(http.StatusOK, target)
 }
 
 // GetDashboard returns the actual vs available money calculation in the requested base currency

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, Target, TrendingUp, Plus, LogOut, Loader2, DollarSign } from 'lucide-react';
+import { Wallet, Target, TrendingUp, Plus, LogOut, Loader2, DollarSign, Edit2 } from 'lucide-react';
 
 export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
@@ -34,6 +34,7 @@ export default function Dashboard() {
   // Recurring State
   const [pendingRecurring, setPendingRecurring] = useState([]);
   const [showRecurringManager, setShowRecurringManager] = useState(false);
+  const [editingItem, setEditingItem] = useState(null); // { type: 'account'|'target', ...item }
 
   const navigate = useNavigate();
 
@@ -166,6 +167,56 @@ export default function Dashboard() {
       setShowTargetForm(false);
       fetchDashboard();
     } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('authToken');
+      const endpoint = editingItem.type === 'account' 
+        ? `/api/v1/finance/accounts/${editingItem.ID}` 
+        : `/api/v1/finance/targets/${editingItem.ID}`;
+      
+      const bodyPayload = editingItem.type === 'account'
+        ? { name: formName, currency: formCurrency, type: formType, cardNumber: formType === 'CARD' ? formCardNumber : null }
+        : { name: formName, currency: formCurrency, type: formType, note: formNote || null };
+
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(bodyPayload)
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Update failed");
+      }
+      
+      setEditingItem(null);
+      setFormName('');
+      setFormAmount('');
+      setFormCardNumber('');
+      setFormNote('');
+      fetchDashboard();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const openEdit = (item, type) => {
+    setEditingItem({ ...item, type });
+    setFormName(item.Name);
+    setFormCurrency(item.Currency);
+    setFormType(item.Type);
+    if (type === 'account') {
+      setFormCardNumber(item.CardNumber || '');
+    } else {
+      setFormNote(item.Note || '');
     }
   };
 
@@ -315,9 +366,9 @@ export default function Dashboard() {
       {(showAccountForm || showTargetForm) && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div className="auth-card" style={{ width: '400px', maxWidth: '90%', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => {setShowAccountForm(false); setShowTargetForm(false)}} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
-            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>{showAccountForm ? 'Add New Account' : 'Add Savings Target'}</h2>
-            <form onSubmit={(e) => handleCreate(e, showAccountForm ? 'account' : 'target')} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <button onClick={() => {setShowAccountForm(false); setShowTargetForm(false); setEditingItem(null)}} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>{editingItem ? (editingItem.type === 'account' ? 'Edit Account' : 'Edit Target') : (showAccountForm ? 'Add New Account' : 'Add Savings Target')}</h2>
+            <form onSubmit={editingItem ? handleUpdate : (e) => handleCreate(e, showAccountForm ? 'account' : 'target')} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <select className="form-input" value={formType} onChange={(e)=>setFormType(e.target.value)} style={{ paddingLeft: '1rem', flexShrink: 0 }}>
@@ -332,7 +383,9 @@ export default function Dashboard() {
               </div>
 
               <input type="text" className="form-input" placeholder={showAccountForm ? "Name (e.g. Wallet, Kapital Bank)" : "Name (e.g. Emergency, Laptop)"} value={formName} onChange={(e)=>setFormName(e.target.value)} required style={{ paddingLeft: '1rem' }} />
-              <input type="number" step="0.01" className="form-input" placeholder={showAccountForm ? "Starting Balance" : "Current Amount"} value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
+              {!editingItem && (
+                <input type="number" step="0.01" className="form-input" placeholder={showAccountForm ? "Starting Balance" : "Current Amount"} value={formAmount} onChange={(e)=>setFormAmount(e.target.value)} required style={{ paddingLeft: '1rem' }} />
+              )}
               
               {showAccountForm && formType === 'CARD' && (
                 <input type="text" className="form-input" placeholder="16-Digit Card Number" value={formCardNumber} onChange={(e)=>setFormCardNumber(e.target.value)} maxLength="16" pattern="\d{16}" required style={{ paddingLeft: '1rem' }} />
@@ -549,7 +602,12 @@ export default function Dashboard() {
                     {isCard && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'monospace' }}>{maskedCard}</div>}
                     {!isCard && acc.Type === 'CASH' && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>Cash Wallet</div>}
                   </div>
-                  <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{acc.Balance.toFixed(2)} {acc.Currency}</div>
+                  <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {acc.Balance.toFixed(2)} {acc.Currency}
+                    <button onClick={() => {openEdit(acc, 'account'); setShowAccountForm(true)}} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -576,7 +634,12 @@ export default function Dashboard() {
                   </div>
                   {target.Note && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{target.Note}</div>}
                 </div>
-                <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600' }}>{target.AssignedAmount.toFixed(2)} {target.Currency}</div>
+                <div style={{ color: 'var(--text-muted)', flexShrink: 0, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {target.AssignedAmount.toFixed(2)} {target.Currency}
+                  <button onClick={() => {openEdit(target, 'target'); setShowTargetForm(true)}} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+                    <Edit2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
