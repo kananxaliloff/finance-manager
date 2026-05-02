@@ -52,7 +52,9 @@ func main() {
 	finance.Use(middleware.RequireAuth) // Apply the JWT middleware
 	finance.GET("/dashboard", controllers.GetDashboard)
 	finance.POST("/accounts", controllers.CreateAccount)
+	finance.PATCH("/accounts/:id", controllers.UpdateAccount)
 	finance.POST("/targets", controllers.CreateTarget)
+	finance.PATCH("/targets/:id", controllers.UpdateTarget)
 	finance.POST("/transactions", controllers.CreateTransaction)
 	finance.GET("/transactions", controllers.GetTransactions)
 	finance.POST("/recurring", controllers.CreateRecurring)
