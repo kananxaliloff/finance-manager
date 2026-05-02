@@ -46,7 +46,7 @@ export default function Dashboard() {
         return;
       }
 
-      const res = await fetch(`http://localhost:8080/api/v1/finance/dashboard?baseCurrency=${baseCurrency}`, {
+      const res = await fetch(`/api/v1/finance/dashboard?baseCurrency=${baseCurrency}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -71,7 +71,7 @@ export default function Dashboard() {
   const fetchTransactions = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const res = await fetch(`http://localhost:8080/api/v1/finance/transactions`, {
+      const res = await fetch(`/api/v1/finance/transactions`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -88,7 +88,7 @@ export default function Dashboard() {
   const fetchPendingRecurring = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const res = await fetch(`http://localhost:8080/api/v1/finance/recurring/pending`, {
+      const res = await fetch(`/api/v1/finance/recurring/pending`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -105,7 +105,7 @@ export default function Dashboard() {
   const handleConfirmRecurring = async (id) => {
     try {
       const token = localStorage.getItem('authToken');
-      const res = await fetch(`http://localhost:8080/api/v1/finance/recurring/confirm/${id}`, {
+      const res = await fetch(`/api/v1/finance/recurring/confirm/${id}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -144,7 +144,7 @@ export default function Dashboard() {
             note: formNote || null
           };
 
-      const res = await fetch(`http://localhost:8080${endpoint}`, {
+      const res = await fetch(`${endpoint}`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -166,7 +166,6 @@ export default function Dashboard() {
       setShowTargetForm(false);
       fetchDashboard();
     } catch (err) {
-      alert(err.message);
     }
   };
 
@@ -184,7 +183,7 @@ export default function Dashboard() {
         targetId: transTarget ? parseInt(transTarget) : null,
       };
 
-      const res = await fetch(`http://localhost:8080/api/v1/finance/transactions`, {
+      const res = await fetch(`/api/v1/finance/transactions`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -481,7 +480,7 @@ export default function Dashboard() {
 
               try {
                 const token = localStorage.getItem('authToken');
-                const res = await fetch('http://localhost:8080/api/v1/finance/recurring', {
+                const res = await fetch('/api/v1/finance/recurring', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                   body: JSON.stringify(payload)
