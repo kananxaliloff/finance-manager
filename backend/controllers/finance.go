@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type CreateAccountInput struct {
@@ -23,6 +24,16 @@ type CreateTargetInput struct {
 	Currency       string            `json:"currency" binding:"required"`
 	Type           models.TargetType `json:"type" binding:"required"`
 	Note           *string           `json:"note" binding:"omitempty"`
+}
+
+type CreateTransactionInput struct {
+	Amount               float64                `json:"amount" binding:"required"`
+	Currency             string                 `json:"currency" binding:"required"`
+	Type                 models.TransactionType `json:"type" binding:"required"`
+	Description          string                 `json:"description"`
+	SourceAccountID      *uint                  `json:"sourceAccountId"`
+	DestinationAccountID *uint                  `json:"destinationAccountId"`
+	TargetID             *uint                  `json:"targetId"`
 }
 
 // CreateAccount adds a new bank or cash account
@@ -173,4 +184,123 @@ func GetDashboard(c *gin.Context) {
 		"accounts":             accounts,
 		"targets":              targets,
 	})
+}
+
+// CreateTransaction adds a new transaction and updates balances
+func CreateTransaction(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var input CreateTransactionInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	}
+
+	// Start a transaction to ensure atomic updates
+	tx := database.DB.Begin()
+
+	transaction := models.Transaction{
+		UserID:               uid,
+		Amount:               input.Amount,
+		Currency:             input.Currency,
+		Type:                 input.Type,
+		Description:          input.Description,
+		SourceAccountID:      input.SourceAccountID,
+		DestinationAccountID: input.DestinationAccountID,
+		TargetID:             input.TargetID,
+	}
+
+	if err := tx.Create(&transaction).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create transaction"})
+		return
+	}
+
+	// Ledger Math Logic
+	switch input.Type {
+	case models.Income:
+		if input.SourceAccountID != nil {
+			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.SourceAccountID, uid).
+				Update("balance", gorm.Expr("balance + ?", input.Amount)).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update account balance"})
+				return
+			}
+		}
+	case models.Expense:
+		if input.SourceAccountID != nil {
+			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.SourceAccountID, uid).
+				Update("balance", gorm.Expr("balance - ?", input.Amount)).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update account balance"})
+				return
+			}
+		}
+	case models.Transfer:
+		// Deduct from Source Account
+		if input.SourceAccountID != nil {
+			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.SourceAccountID, uid).
+				Update("balance", gorm.Expr("balance - ?", input.Amount)).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update source account balance"})
+				return
+			}
+		}
+		// Add to Destination Account OR Target
+		if input.DestinationAccountID != nil {
+			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.DestinationAccountID, uid).
+				Update("balance", gorm.Expr("balance + ?", input.Amount)).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update destination account balance"})
+				return
+			}
+		} else if input.TargetID != nil {
+			if err := tx.Model(&models.Target{}).Where("id = ? AND user_id = ?", input.TargetID, uid).
+				Update("assigned_amount", gorm.Expr("assigned_amount + ?", input.Amount)).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target assigned amount"})
+				return
+			}
+		}
+	}
+
+	tx.Commit()
+	c.JSON(http.StatusCreated, gin.H{"transactionId": transaction.ID})
+}
+
+// GetTransactions returns the transaction history for the user
+func GetTransactions(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var uid uint
+	switch v := userID.(type) {
+	case float64:
+		uid = uint(v)
+	case uint:
+		uid = v
+	}
+
+	var transactions []models.Transaction
+	if err := database.DB.Where("user_id = ?", uid).Order("created_at desc").Find(&transactions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch transactions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, transactions)
 }

@@ -17,6 +17,19 @@ export default function Dashboard() {
   const [formType, setFormType] = useState('CASH'); // CASH or CARD for accounts, SAVING or PURCHASE for targets
   const [formCardNumber, setFormCardNumber] = useState('');
   const [formNote, setFormNote] = useState('');
+  
+  // Transaction Form States
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [transAmount, setTransAmount] = useState('');
+  const [transType, setTransType] = useState('EXPENSE');
+  const [transSource, setTransSource] = useState('');
+  const [transDest, setTransDest] = useState('');
+  const [transTarget, setTransTarget] = useState('');
+  const [transDesc, setTransDesc] = useState('');
+  
+  // History State
+  const [showHistory, setShowHistory] = useState(false);
+  const [transactions, setTransactions] = useState([]);
 
   const navigate = useNavigate();
 
@@ -50,6 +63,23 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [baseCurrency]);
+
+  const fetchTransactions = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`http://localhost:8080/api/v1/finance/transactions`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setTransactions(data);
+    } catch (err) {
+      console.error("Failed to fetch transactions", err);
+    }
+  };
+
+  useEffect(() => {
+    if (showHistory) fetchTransactions();
+  }, [showHistory]);
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
@@ -103,6 +133,45 @@ export default function Dashboard() {
     }
   };
 
+  const handleCreateTransaction = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('authToken');
+      const bodyPayload = {
+        amount: parseFloat(transAmount),
+        currency: baseCurrency, // Use dashboard base currency for simplicity or add currency select
+        type: transType,
+        description: transDesc,
+        sourceAccountId: transSource ? parseInt(transSource) : null,
+        destinationAccountId: transDest ? parseInt(transDest) : null,
+        targetId: transTarget ? parseInt(transTarget) : null,
+      };
+
+      const res = await fetch(`http://localhost:8080/api/v1/finance/transactions`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(bodyPayload)
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Reset forms and refresh data
+      setTransAmount('');
+      setTransDesc('');
+      setTransSource('');
+      setTransDest('');
+      setTransTarget('');
+      setShowTransactionForm(false);
+      fetchDashboard();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   if (loading && !dashboardData) {
     return <div className="auth-container"><Loader2 className="animate-spin" size={48} color="var(--primary)" /></div>;
   }
@@ -125,6 +194,12 @@ export default function Dashboard() {
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
           </select>
+          <button onClick={() => setShowTransactionForm(true)} className="btn-primary" style={{ margin: 0, padding: '0.4rem 1rem' }}>
+            Add Transaction
+          </button>
+          <button onClick={() => setShowHistory(true)} className="btn-primary" style={{ margin: 0, padding: '0.4rem 1rem', background: 'transparent', border: '1px solid var(--border)' }}>
+            History
+          </button>
           <button onClick={handleLogout} className="btn-primary" style={{ margin: 0, padding: '0.4rem 0.8rem', background: 'transparent', border: '1px solid var(--border)' }}>
             <LogOut size={18} />
           </button>
@@ -207,6 +282,116 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Modal for Transactions */}
+      {showTransactionForm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="auth-card" style={{ width: '450px', maxWidth: '90%', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowTransactionForm(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>Record Transaction</h2>
+            <form onSubmit={handleCreateTransaction} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <select className="form-input" value={transType} onChange={(e)=>setTransType(e.target.value)} style={{ paddingLeft: '1rem', flex: 1 }}>
+                  <option value="INCOME">Income</option>
+                  <option value="EXPENSE">Expense</option>
+                  <option value="TRANSFER">Transfer</option>
+                </select>
+                <input type="number" step="0.01" className="form-input" placeholder="Amount" value={transAmount} onChange={(e)=>setTransAmount(e.target.value)} required style={{ paddingLeft: '1rem', flex: 1 }} />
+              </div>
+
+              {/* Source Account (Required for Expense/Transfer, optional for Income if direct to account) */}
+              <select className="form-input" value={transSource} onChange={(e)=>setTransSource(e.target.value)} required={transType !== 'INCOME'} style={{ paddingLeft: '1rem' }}>
+                <option value="">{transType === 'INCOME' ? 'Target Account (Required)' : 'Source Account'}</option>
+                {dashboardData.accounts.map(acc => (
+                  <option key={acc.ID} value={acc.ID}>{acc.Name} ({acc.Balance.toFixed(2)} {acc.Currency})</option>
+                ))}
+              </select>
+
+              {transType === 'TRANSFER' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>To:</p>
+                  <select className="form-input" value={transDest || (transTarget ? `t-${transTarget}` : '')} onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith('t-')) {
+                      setTransTarget(val.substring(2));
+                      setTransDest('');
+                    } else {
+                      setTransDest(val);
+                      setTransTarget('');
+                    }
+                  }} style={{ paddingLeft: '1rem' }}>
+                    <option value="">Select Destination</option>
+                    <optgroup label="Accounts">
+                      {dashboardData.accounts.filter(a => a.ID != transSource).map(acc => (
+                        <option key={acc.ID} value={acc.ID}>{acc.Name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Savings Targets">
+                      {dashboardData.targets.map(t => (
+                        <option key={t.ID} value={`t-${t.ID}`}>{t.Name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+              )}
+
+              <input type="text" className="form-input" placeholder="Description (e.g. Salary, Rent, Save for Laptop)" value={transDesc} onChange={(e)=>setTransDesc(e.target.value)} style={{ paddingLeft: '1rem' }} />
+
+              <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem' }}>
+                Submit Transaction
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for History */}
+      {showHistory && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="auth-card" style={{ width: '600px', maxWidth: '95%', maxHeight: '80vh', padding: '2rem', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            <button onClick={() => setShowHistory(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>Transaction History</h2>
+            
+            <div style={{ overflowY: 'auto', flexGrow: 1 }}>
+              {transactions.length === 0 && <p style={{color:'var(--text-muted)'}}>No transactions yet.</p>}
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                    <th style={{ padding: '0.75rem 0' }}>Date</th>
+                    <th style={{ padding: '0.75rem 0' }}>Type</th>
+                    <th style={{ padding: '0.75rem 0' }}>Description</th>
+                    <th style={{ padding: '0.75rem 0', textAlign: 'right' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(t => (
+                    <tr key={t.ID} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.75rem 0', fontSize: '0.85rem' }}>{new Date(t.CreatedAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.75rem 0' }}>
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px',
+                          background: t.Type === 'INCOME' ? 'rgba(16, 185, 129, 0.1)' : t.Type === 'EXPENSE' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                          color: t.Type === 'INCOME' ? '#10b981' : t.Type === 'EXPENSE' ? '#ef4444' : '#3b82f6'
+                        }}>
+                          {t.Type}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem 0', fontSize: '0.9rem' }}>{t.Description || '-'}</td>
+                      <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: '600', color: t.Type === 'INCOME' ? '#10b981' : t.Type === 'EXPENSE' ? '#ef4444' : 'inherit' }}>
+                        {t.Type === 'INCOME' ? '+' : t.Type === 'EXPENSE' ? '-' : ''}{t.Amount.toFixed(2)} {t.Currency}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Lists & Creation Forms - Takes remaining height and scrolls */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flexGrow: 1, minHeight: 0 }}>

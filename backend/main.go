@@ -53,6 +53,8 @@ func main() {
 	finance.GET("/dashboard", controllers.GetDashboard)
 	finance.POST("/accounts", controllers.CreateAccount)
 	finance.POST("/targets", controllers.CreateTarget)
+	finance.POST("/transactions", controllers.CreateTransaction)
+	finance.GET("/transactions", controllers.GetTransactions)
 
 	port := os.Getenv("PORT")
 	if port == "" {
