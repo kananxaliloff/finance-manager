@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type CreateAccountInput struct {
@@ -66,17 +65,37 @@ func CreateAccount(c *gin.Context) {
 	account := models.Account{
 		UserID:     uid,
 		Name:       input.Name,
-		Balance:    input.Balance,
+		Balance:    0, // Start at 0 for ledger tracking
 		Currency:   input.Currency,
 		Type:       input.Type,
 		CardNumber: input.CardNumber,
 	}
 
-	if err := database.DB.Create(&account).Error; err != nil {
+	tx := database.DB.Begin()
+	if err := tx.Create(&account).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
 		return
 	}
 
+	// Create initial balance transaction if amount > 0
+	if input.Balance > 0 {
+		transaction := models.Transaction{
+			UserID:          uid,
+			Amount:          input.Balance,
+			Currency:        input.Currency,
+			Type:            models.Income,
+			Description:     "Initial Balance",
+			SourceAccountID: &account.ID,
+		}
+		if err := tx.Create(&transaction).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create initial transaction"})
+			return
+		}
+	}
+
+	tx.Commit()
 	c.JSON(http.StatusCreated, gin.H{"accountId": account.ID})
 }
 
@@ -105,17 +124,37 @@ func CreateTarget(c *gin.Context) {
 	target := models.Target{
 		UserID:         uid,
 		Name:           input.Name,
-		AssignedAmount: input.AssignedAmount,
+		AssignedAmount: 0, // Start at 0 for ledger tracking
 		Currency:       input.Currency,
 		Type:           input.Type,
 		Note:           input.Note,
 	}
 
-	if err := database.DB.Create(&target).Error; err != nil {
+	tx := database.DB.Begin()
+	if err := tx.Create(&target).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create target"})
 		return
 	}
 
+	// If initial amount is provided, we treat it as an initial allocation
+	if input.AssignedAmount > 0 {
+		transaction := models.Transaction{
+			UserID:      uid,
+			Amount:      input.AssignedAmount,
+			Currency:    input.Currency,
+			Type:        models.Transfer,
+			Description: "Initial Allocation",
+			TargetID:    &target.ID,
+		}
+		if err := tx.Create(&transaction).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create initial allocation transaction"})
+			return
+		}
+	}
+
+	tx.Commit()
 	c.JSON(http.StatusCreated, gin.H{"targetId": target.ID})
 }
 
@@ -150,12 +189,48 @@ func GetDashboard(c *gin.Context) {
 		return
 	}
 
+	var transactions []models.Transaction
+	if err := database.DB.Where("user_id = ?", uid).Find(&transactions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch transactions"})
+		return
+	}
+
+	// Ledger Calculation
+	accountBalances := make(map[uint]float64)
+	targetBalances := make(map[uint]float64)
+
+	for _, t := range transactions {
+		switch t.Type {
+		case models.Income:
+			if t.SourceAccountID != nil {
+				accountBalances[*t.SourceAccountID] += t.Amount
+			}
+		case models.Expense:
+			if t.SourceAccountID != nil {
+				accountBalances[*t.SourceAccountID] -= t.Amount
+			}
+		case models.Transfer:
+			if t.SourceAccountID != nil {
+				accountBalances[*t.SourceAccountID] -= t.Amount
+			}
+			if t.DestinationAccountID != nil {
+				accountBalances[*t.DestinationAccountID] += t.Amount
+			}
+			if t.TargetID != nil {
+				targetBalances[*t.TargetID] += t.Amount
+			}
+		}
+	}
+
 	var totalActualMoney float64 = 0
 	var totalAssignedTargets float64 = 0
 
 	// Sum Accounts in Base Currency
-	for _, acc := range accounts {
-		converted, err := utils.ConvertCurrency(acc.Balance, acc.Currency, baseCurrency)
+	for i := range accounts {
+		// Override balance with ledger calculation
+		accounts[i].Balance = accountBalances[accounts[i].ID]
+		
+		converted, err := utils.ConvertCurrency(accounts[i].Balance, accounts[i].Currency, baseCurrency)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Currency conversion error: " + err.Error()})
 			return
@@ -164,8 +239,11 @@ func GetDashboard(c *gin.Context) {
 	}
 
 	// Sum Targets in Base Currency
-	for _, trg := range targets {
-		converted, err := utils.ConvertCurrency(trg.AssignedAmount, trg.Currency, baseCurrency)
+	for i := range targets {
+		// Override assigned amount with ledger calculation
+		targets[i].AssignedAmount = targetBalances[targets[i].ID]
+		
+		converted, err := utils.ConvertCurrency(targets[i].AssignedAmount, targets[i].Currency, baseCurrency)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Currency conversion error: " + err.Error()})
 			return
@@ -228,52 +306,10 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	// Ledger Math Logic
-	switch input.Type {
-	case models.Income:
-		if input.SourceAccountID != nil {
-			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.SourceAccountID, uid).
-				Update("balance", gorm.Expr("balance + ?", input.Amount)).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update account balance"})
-				return
-			}
-		}
-	case models.Expense:
-		if input.SourceAccountID != nil {
-			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.SourceAccountID, uid).
-				Update("balance", gorm.Expr("balance - ?", input.Amount)).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update account balance"})
-				return
-			}
-		}
-	case models.Transfer:
-		// Deduct from Source Account
-		if input.SourceAccountID != nil {
-			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.SourceAccountID, uid).
-				Update("balance", gorm.Expr("balance - ?", input.Amount)).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update source account balance"})
-				return
-			}
-		}
-		// Add to Destination Account OR Target
-		if input.DestinationAccountID != nil {
-			if err := tx.Model(&models.Account{}).Where("id = ? AND user_id = ?", input.DestinationAccountID, uid).
-				Update("balance", gorm.Expr("balance + ?", input.Amount)).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update destination account balance"})
-				return
-			}
-		} else if input.TargetID != nil {
-			if err := tx.Model(&models.Target{}).Where("id = ? AND user_id = ?", input.TargetID, uid).
-				Update("assigned_amount", gorm.Expr("assigned_amount + ?", input.Amount)).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target assigned amount"})
-				return
-			}
-		}
+	if err := tx.Create(&transaction).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create transaction"})
+		return
 	}
 
 	tx.Commit()
