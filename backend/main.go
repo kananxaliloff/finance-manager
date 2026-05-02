@@ -55,6 +55,10 @@ func main() {
 	finance.POST("/targets", controllers.CreateTarget)
 	finance.POST("/transactions", controllers.CreateTransaction)
 	finance.GET("/transactions", controllers.GetTransactions)
+	finance.POST("/recurring", controllers.CreateRecurring)
+	finance.GET("/recurring", controllers.GetRecurring)
+	finance.GET("/recurring/pending", controllers.GetPendingRecurring)
+	finance.POST("/recurring/confirm/:id", controllers.ConfirmRecurring)
 
 	port := os.Getenv("PORT")
 	if port == "" {

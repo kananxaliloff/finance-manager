@@ -20,6 +20,7 @@ type Transaction struct {
 	SourceAccountID      *uint           `gorm:"null;index"`
 	DestinationAccountID *uint           `gorm:"null;index"`
 	TargetID             *uint           `gorm:"null;index"`
+	RecurringTransactionID *uint         `gorm:"null;index"`
 
 	// Foreign key relation to User
 	User User `gorm:"foreignKey:UserID"`

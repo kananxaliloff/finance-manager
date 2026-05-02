@@ -332,7 +332,7 @@ func GetTransactions(c *gin.Context) {
 		uid = v
 	}
 
-	var transactions []models.Transaction
+	transactions := []models.Transaction{}
 	if err := database.DB.Where("user_id = ?", uid).Order("created_at desc").Find(&transactions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch transactions"})
 		return

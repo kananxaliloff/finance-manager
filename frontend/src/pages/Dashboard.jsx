@@ -30,6 +30,10 @@ export default function Dashboard() {
   // History State
   const [showHistory, setShowHistory] = useState(false);
   const [transactions, setTransactions] = useState([]);
+  
+  // Recurring State
+  const [pendingRecurring, setPendingRecurring] = useState([]);
+  const [showRecurringManager, setShowRecurringManager] = useState(false);
 
   const navigate = useNavigate();
 
@@ -80,6 +84,39 @@ export default function Dashboard() {
   useEffect(() => {
     if (showHistory) fetchTransactions();
   }, [showHistory]);
+
+  const fetchPendingRecurring = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`http://localhost:8080/api/v1/finance/recurring/pending`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setPendingRecurring(data);
+    } catch (err) {
+      console.error("Failed to fetch pending recurring", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingRecurring();
+  }, []);
+
+  const handleConfirmRecurring = async (id) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`http://localhost:8080/api/v1/finance/recurring/confirm/${id}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to confirm transaction");
+      
+      fetchPendingRecurring();
+      fetchDashboard();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
@@ -172,15 +209,26 @@ export default function Dashboard() {
     }
   };
 
-  if (loading && !dashboardData) {
-    return <div className="auth-container"><Loader2 className="animate-spin" size={48} color="var(--primary)" /></div>;
+  if (loading) {
+    return <div className="auth-container" style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center'}}><Loader2 className="animate-spin" size={48} color="var(--primary)" /></div>;
   }
+
+  if (error && !dashboardData) {
+    return (
+      <div className="auth-container" style={{height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1rem'}}>
+        <div className="error-message">{error}</div>
+        <button onClick={fetchDashboard} className="btn-primary" style={{width: 'auto'}}>Retry</button>
+      </div>
+    );
+  }
+
+  if (!dashboardData) return null;
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', padding: '1rem 2rem', maxWidth: '1400px', margin: '0 auto', boxSizing: 'border-box' }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexShrink: 0 }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>Finance Overview</h1>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -200,11 +248,31 @@ export default function Dashboard() {
           <button onClick={() => setShowHistory(true)} className="btn-primary" style={{ margin: 0, padding: '0.4rem 1rem', background: 'transparent', border: '1px solid var(--border)' }}>
             History
           </button>
+          <button onClick={() => setShowRecurringManager(true)} className="btn-primary" style={{ margin: 0, padding: '0.4rem 1rem', background: 'transparent', border: '1px solid var(--border)' }}>
+            Monthly
+          </button>
           <button onClick={handleLogout} className="btn-primary" style={{ margin: 0, padding: '0.4rem 0.8rem', background: 'transparent', border: '1px solid var(--border)' }}>
             <LogOut size={18} />
           </button>
         </div>
       </div>
+
+      {/* Pending Monthly Actions Banner */}
+      {pendingRecurring?.length > 0 && (
+        <div style={{ background: 'rgba(59, 130, 246, 0.1)', borderLeft: '4px solid #3b82f6', padding: '1rem', marginBottom: '1.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h4 style={{ margin: 0, color: '#3b82f6', fontSize: '0.9rem', fontWeight: 'bold' }}>Monthly Automation Pending</h4>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>You have {pendingRecurring.length} recurring transaction(s) ready for this month.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {pendingRecurring?.map(pr => (
+              <button key={pr.ID} onClick={() => handleConfirmRecurring(pr.ID)} className="btn-primary" style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#3b82f6' }}>
+                Confirm {pr.Description} (+{pr.Amount})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && <div className="error-message" style={{marginBottom: '1rem'}}>{error}</div>}
 
@@ -303,7 +371,7 @@ export default function Dashboard() {
               {/* Source Account (Required for Expense/Transfer, optional for Income if direct to account) */}
               <select className="form-input" value={transSource} onChange={(e)=>setTransSource(e.target.value)} required={transType !== 'INCOME'} style={{ paddingLeft: '1rem' }}>
                 <option value="">{transType === 'INCOME' ? 'Target Account (Required)' : 'Source Account'}</option>
-                {dashboardData.accounts.map(acc => (
+                {dashboardData?.accounts?.map(acc => (
                   <option key={acc.ID} value={acc.ID}>{acc.Name} ({acc.Balance.toFixed(2)} {acc.Currency})</option>
                 ))}
               </select>
@@ -323,12 +391,12 @@ export default function Dashboard() {
                   }} style={{ paddingLeft: '1rem' }}>
                     <option value="">Select Destination</option>
                     <optgroup label="Accounts">
-                      {dashboardData.accounts.filter(a => a.ID != transSource).map(acc => (
+                      {dashboardData?.accounts?.filter(a => a.ID != transSource).map(acc => (
                         <option key={acc.ID} value={acc.ID}>{acc.Name}</option>
                       ))}
                     </optgroup>
                     <optgroup label="Savings Targets">
-                      {dashboardData.targets.map(t => (
+                      {dashboardData?.targets?.map(t => (
                         <option key={t.ID} value={`t-${t.ID}`}>{t.Name}</option>
                       ))}
                     </optgroup>
@@ -354,7 +422,7 @@ export default function Dashboard() {
             <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>Transaction History</h2>
             
             <div style={{ overflowY: 'auto', flexGrow: 1 }}>
-              {transactions.length === 0 && <p style={{color:'var(--text-muted)'}}>No transactions yet.</p>}
+              {transactions?.length === 0 && <p style={{color:'var(--text-muted)'}}>No transactions yet.</p>}
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -365,7 +433,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map(t => (
+                  {transactions?.map(t => (
                     <tr key={t.ID} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <td style={{ padding: '0.75rem 0', fontSize: '0.85rem' }}>{new Date(t.CreatedAt).toLocaleDateString()}</td>
                       <td style={{ padding: '0.75rem 0' }}>
@@ -387,6 +455,71 @@ export default function Dashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Recurring Management */}
+      {showRecurringManager && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="auth-card" style={{ width: '500px', maxWidth: '95%', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowRecurringManager(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>Monthly Automations</h2>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              const payload = {
+                amount: parseFloat(formData.get('amount')),
+                currency: formData.get('currency'),
+                type: formData.get('type'),
+                description: formData.get('description'),
+                dayOfMonth: parseInt(formData.get('dayOfMonth')),
+                sourceAccountId: formData.get('sourceAccountId') ? parseInt(formData.get('sourceAccountId')) : null,
+              };
+
+              try {
+                const token = localStorage.getItem('authToken');
+                const res = await fetch('http://localhost:8080/api/v1/finance/recurring', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error("Failed to create rule");
+                e.target.reset();
+                fetchPendingRecurring();
+                alert("Recurring rule added!");
+              } catch (err) {
+                alert(err.message);
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input name="description" className="form-input" placeholder="Description (e.g. Salary)" required style={{ flex: 2 }} />
+                <input name="dayOfMonth" type="number" min="1" max="31" className="form-input" placeholder="Day (1-31)" required style={{ flex: 1 }} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input name="amount" type="number" step="0.01" className="form-input" placeholder="Amount" required style={{ flex: 1 }} />
+                <select name="currency" className="form-input" style={{ width: '90px' }}>
+                  <option value="AZN">AZN</option><option value="USD">USD</option><option value="EUR">EUR</option>
+                </select>
+                <select name="type" className="form-input" style={{ flex: 1 }}>
+                  <option value="INCOME">Income</option>
+                  <option value="EXPENSE">Expense</option>
+                </select>
+              </div>
+              <select name="sourceAccountId" className="form-input" required>
+                <option value="">Select Account</option>
+                {dashboardData?.accounts?.map(acc => (
+                  <option key={acc.ID} value={acc.ID}>{acc.Name}</option>
+                ))}
+              </select>
+              <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem' }}>Add Monthly Rule</button>
+            </form>
+
+            <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+              <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Active Rules</h4>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Newly added rules will prompt for confirmation on their scheduled day each month.</p>
             </div>
           </div>
         </div>
